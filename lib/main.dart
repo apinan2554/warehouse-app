@@ -406,22 +406,20 @@ class _ProductMasterPageState extends State<ProductMasterPage> {
   void _add() {
     final id = _idC.text.trim();
     final name = _nameC.text.trim();
-    final unit = _unitC.text.trim();
-    if (id.isEmpty || name.isEmpty || unit.isEmpty) {
-      _snack('กรุณากรอกข้อมูลให้ครบ');
+    if (id.isEmpty || name.isEmpty) {
+      _snack('กรุณากรอกข้อมูลให้ครบ (รหัส, ชื่อสินค้า)');
       return;
     }
     if (_s.products.any((p) => p.id == id)) {
       _snack('รหัส "$id" มีอยู่แล้ว');
       return;
     }
-    final reorder = int.tryParse(_reorderC.text.trim()) ?? 0;
     final newProduct = Product(
-          id: id, name: name, unit: unit, category: _cat,
-          description: _descC.text.trim(), reorderPoint: reorder);
+          id: id, name: name, unit: 'ชิ้น', category: _cat,
+          description: '', reorderPoint: 0);
     setState(() => _s.products.add(newProduct));
     _s._saveProduct(newProduct);
-    _idC.clear(); _nameC.clear(); _unitC.clear(); _descC.clear(); _reorderC.clear();
+    _idC.clear(); _nameC.clear();
     _snack('เพิ่ม "$name" สำเร็จ');
   }
 
