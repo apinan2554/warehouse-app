@@ -356,7 +356,7 @@ class _ProductMasterPageState extends State<ProductMasterPage> {
                 TextField(controller: nameC, decoration: const InputDecoration(labelText: 'ชื่อสินค้า', border: OutlineInputBorder())),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: cat,
+                  value: cat,
                   decoration: const InputDecoration(labelText: 'ประเภท', border: OutlineInputBorder()),
                   items: productCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: (v) => setD(() => cat = v!),
@@ -458,7 +458,7 @@ class _ProductMasterPageState extends State<ProductMasterPage> {
           TextField(controller: _nameC, decoration: const InputDecoration(labelText: 'ชื่อสินค้า', border: OutlineInputBorder())),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            initialValue: _cat,
+            value: _cat,
             decoration: const InputDecoration(labelText: 'ประเภท', border: OutlineInputBorder()),
             items: productCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
             onChanged: (v) => setState(() => _cat = v!),
@@ -486,7 +486,7 @@ class _ProductMasterPageState extends State<ProductMasterPage> {
               SizedBox(
                 width: 170,
                 child: DropdownButtonFormField<String>(
-                  initialValue: _cat,
+                  value: _cat,
                   decoration: const InputDecoration(labelText: 'ประเภท', border: OutlineInputBorder()),
                   items: productCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: (v) => setState(() => _cat = v!),
@@ -602,14 +602,14 @@ class _InboundPageState extends State<InboundPage> {
               padding: const EdgeInsets.all(16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 DropdownButtonFormField<String>(
-                  initialValue: _prodId,
+                  value: _prodId,
                   decoration: const InputDecoration(labelText: 'เลือกสินค้า', border: OutlineInputBorder()),
                   items: _s.products.map((p) => DropdownMenuItem(value: p.id, child: Text('${p.id} - ${p.name}'))).toList(),
                   onChanged: (v) => setState(() => _prodId = v),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: _zone,
+                  value: _zone,
                   decoration: const InputDecoration(labelText: 'เลือกโซน', border: OutlineInputBorder()),
                   items: _s.zones.map((z) => DropdownMenuItem(value: z, child: Text(z))).toList(),
                   onChanged: (v) => setState(() => _zone = v!),
@@ -695,21 +695,21 @@ class _StockTransferPageState extends State<StockTransferPage> {
               padding: const EdgeInsets.all(16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 DropdownButtonFormField<String>(
-                  initialValue: _from,
+                  value: _from,
                   decoration: const InputDecoration(labelText: 'โซนต้นทาง', border: OutlineInputBorder()),
                   items: _s.zones.map((z) => DropdownMenuItem(value: z, child: Text(z))).toList(),
                   onChanged: (v) => setState(() { _from = v!; _prodId = null; }),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: _prodId,
+                  value: _prodId,
                   decoration: const InputDecoration(labelText: 'สินค้า (ที่มีในโซนต้นทาง)', border: OutlineInputBorder()),
                   items: _available.map((p) => DropdownMenuItem(value: p.id, child: Text('${p.id} - ${p.name} (${_s.getStock(p.id, _from)})'))).toList(),
                   onChanged: (v) => setState(() => _prodId = v),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: _to,
+                  value: _to,
                   decoration: const InputDecoration(labelText: 'โซนปลายทาง', border: OutlineInputBorder()),
                   items: _s.zones.map((z) => DropdownMenuItem(value: z, child: Text(z))).toList(),
                   onChanged: (v) => setState(() => _to = v!),
@@ -780,14 +780,14 @@ class _OutboundPageState extends State<OutboundPage> {
               padding: const EdgeInsets.all(16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 DropdownButtonFormField<String>(
-                  initialValue: _zone,
+                  value: _zone,
                   decoration: const InputDecoration(labelText: 'เลือกโซน', border: OutlineInputBorder()),
                   items: _s.zones.map((z) => DropdownMenuItem(value: z, child: Text(z))).toList(),
                   onChanged: (v) => setState(() { _zone = v!; _prodId = null; }),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: _prodId,
+                  value: _prodId,
                   decoration: const InputDecoration(labelText: 'สินค้า (ที่มีในโซน)', border: OutlineInputBorder()),
                   items: _available.map((p) => DropdownMenuItem(value: p.id, child: Text('${p.id} - ${p.name} (คงเหลือ ${_s.getStock(p.id, _zone)})'))).toList(),
                   onChanged: (v) => setState(() => _prodId = v),
