@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as pathLib;
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb) {
+    await DataStore().initDb();
+  }
   runApp(const WarehouseApp());
 }
 
@@ -57,6 +64,9 @@ class DataStore {
   factory DataStore() => _instance;
   DataStore._internal();
 
+  Database? _db;
+  bool get _useDb => !kIsWeb && _db != null;
+
   final List<Product> products = [];
   final List<StockEntry> stock = [];
   final List<TransactionLog> logs = [];
@@ -67,6 +77,85 @@ class DataStore {
     'C1', 'C2', 'C3',
   ];
   final String warehouseName = 'Main Warehouse';
+
+  /// เปิด DB และโหลดข้อมูลเข้า memory
+  Future<void> initDb() async {
+    final dbPath = await getDatabasesPath();
+    final path = pathLib.join(dbPath, 'warehouse.db');
+    _db = await openDatabase(path, version: 1, onCreate: (db, v) async {
+      await db.execute('CREATE TABLE products (id TEXT PRIMARY KEY, name TEXT, unit TEXT, category TEXT, description TEXT, reorder_point INTEGER DEFAULT 0)');
+      await db.execute('CREATE TABLE stock (product_id TEXT, zone TEXT, quantity INTEGER, PRIMARY KEY (product_id, zone))');
+      await db.execute('CREATE TABLE logs (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, product_id TEXT, from_zone TEXT, to_zone TEXT, quantity INTEGER, timestamp TEXT)');
+    });
+    // โหลดข้อมูลจาก DB เข้า memory
+    final pMaps = await _db!.query('products');
+    products.clear();
+    for (final m in pMaps) {
+      products.add(Product(
+        id: m['id'] as String,
+        name: m['name'] as String,
+        unit: m['unit'] as String,
+        category: m['category'] as String? ?? 'ไฟฟ้า',
+        description: m['description'] as String? ?? '',
+        reorderPoint: m['reorder_point'] as int? ?? 0,
+      ));
+    }
+    final sMaps = await _db!.query('stock');
+    stock.clear();
+    for (final m in sMaps) {
+      stock.add(StockEntry(
+        productId: m['product_id'] as String,
+        zone: m['zone'] as String,
+        quantity: m['quantity'] as int,
+      ));
+    }
+    final lMaps = await _db!.query('logs', orderBy: 'id DESC', limit: 100);
+    logs.clear();
+    for (final m in lMaps) {
+      logs.add(TransactionLog(
+        type: m['type'] as String,
+        productId: m['product_id'] as String,
+        fromZone: m['from_zone'] as String? ?? '',
+        toZone: m['to_zone'] as String? ?? '',
+        quantity: m['quantity'] as int,
+        timestamp: DateTime.parse(m['timestamp'] as String),
+      ));
+    }
+  }
+
+  // --- DB save helpers ---
+  Future<void> _saveProduct(Product p) async {
+    if (!_useDb) return;
+    await _db!.insert('products', {
+      'id': p.id, 'name': p.name, 'unit': p.unit,
+      'category': p.category, 'description': p.description,
+      'reorder_point': p.reorderPoint,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> _deleteProductDb(String id) async {
+    if (!_useDb) return;
+    await _db!.delete('products', where: 'id = ?', whereArgs: [id]);
+    await _db!.delete('stock', where: 'product_id = ?', whereArgs: [id]);
+  }
+
+  Future<void> _saveStock(String productId, String zone, int qty) async {
+    if (!_useDb) return;
+    if (qty <= 0) {
+      await _db!.delete('stock', where: 'product_id = ? AND zone = ?', whereArgs: [productId, zone]);
+    } else {
+      await _db!.insert('stock', {'product_id': productId, 'zone': zone, 'quantity': qty}, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
+
+  Future<void> _saveLog(TransactionLog log) async {
+    if (!_useDb) return;
+    await _db!.insert('logs', {
+      'type': log.type, 'product_id': log.productId,
+      'from_zone': log.fromZone, 'to_zone': log.toZone,
+      'quantity': log.quantity, 'timestamp': log.timestamp.toIso8601String(),
+    });
+  }
 
   List<String> subZonesOf(String mainZone) {
     final prefix = mainZone.split(' ').last;
@@ -82,8 +171,10 @@ class DataStore {
     final idx = stock.indexWhere((s) => s.productId == productId && s.zone == zone);
     if (idx >= 0) {
       stock[idx].quantity += qty;
+      _saveStock(productId, zone, stock[idx].quantity);
     } else {
       stock.add(StockEntry(productId: productId, zone: zone, quantity: qty));
+      _saveStock(productId, zone, qty);
     }
   }
 
@@ -91,7 +182,12 @@ class DataStore {
     final idx = stock.indexWhere((s) => s.productId == productId && s.zone == zone);
     if (idx < 0 || stock[idx].quantity < qty) return false;
     stock[idx].quantity -= qty;
-    if (stock[idx].quantity == 0) stock.removeAt(idx);
+    if (stock[idx].quantity == 0) {
+      stock.removeAt(idx);
+      _saveStock(productId, zone, 0);
+    } else {
+      _saveStock(productId, zone, stock[idx].quantity);
+    }
     return true;
   }
 
@@ -320,9 +416,11 @@ class _ProductMasterPageState extends State<ProductMasterPage> {
       return;
     }
     final reorder = int.tryParse(_reorderC.text.trim()) ?? 0;
-    setState(() => _s.products.add(Product(
+    final newProduct = Product(
           id: id, name: name, unit: unit, category: _cat,
-          description: _descC.text.trim(), reorderPoint: reorder)));
+          description: _descC.text.trim(), reorderPoint: reorder);
+    setState(() => _s.products.add(newProduct));
+    _s._saveProduct(newProduct);
     _idC.clear(); _nameC.clear(); _unitC.clear(); _descC.clear(); _reorderC.clear();
     _snack('เพิ่ม "$name" สำเร็จ');
   }
@@ -333,6 +431,7 @@ class _ProductMasterPageState extends State<ProductMasterPage> {
       _s.products.removeAt(i);
       _s.stock.removeWhere((s) => s.productId == p.id);
     });
+    _s._deleteProductDb(p.id);
     _snack('ลบ "${p.name}" แล้ว');
   }
 
@@ -381,6 +480,7 @@ class _ProductMasterPageState extends State<ProductMasterPage> {
                   p.description = descC.text.trim();
                   p.reorderPoint = int.tryParse(reorderC.text.trim()) ?? 0;
                 });
+                _s._saveProduct(p);
                 Navigator.pop(ctx);
                 _snack('แก้ไข "${p.name}" สำเร็จ');
               },
@@ -576,7 +676,9 @@ class _InboundPageState extends State<InboundPage> {
     if (qty <= 0) { _snack('กรุณาระบุจำนวนที่มากกว่า 0'); return; }
     setState(() {
       _s.addStock(_prodId!, _zone, qty);
-      _s.logs.add(TransactionLog(type: 'inbound', productId: _prodId!, toZone: _zone, quantity: qty, timestamp: DateTime.now()));
+      final log = TransactionLog(type: 'inbound', productId: _prodId!, toZone: _zone, quantity: qty, timestamp: DateTime.now());
+      _s.logs.add(log);
+      _s._saveLog(log);
     });
     _qtyC.clear();
     _snack('รับ "${_s.productName(_prodId!)}" $qty หน่วย เข้า $_zone สำเร็จ');
@@ -669,7 +771,9 @@ class _StockTransferPageState extends State<StockTransferPage> {
     setState(() {
       _s.reduceStock(_prodId!, _from, qty);
       _s.addStock(_prodId!, _to, qty);
-      _s.logs.add(TransactionLog(type: 'transfer', productId: _prodId!, fromZone: _from, toZone: _to, quantity: qty, timestamp: DateTime.now()));
+      final log = TransactionLog(type: 'transfer', productId: _prodId!, fromZone: _from, toZone: _to, quantity: qty, timestamp: DateTime.now());
+      _s.logs.add(log);
+      _s._saveLog(log);
     });
     _qtyC.clear();
     final name = _s.productName(_prodId!);
@@ -752,7 +856,9 @@ class _OutboundPageState extends State<OutboundPage> {
     if (qty > avail) { _snack('มีเพียง $avail หน่วย (ไม่พอจ่าย)'); return; }
     setState(() {
       _s.reduceStock(_prodId!, _zone, qty);
-      _s.logs.add(TransactionLog(type: 'outbound', productId: _prodId!, fromZone: _zone, quantity: qty, timestamp: DateTime.now()));
+      final log = TransactionLog(type: 'outbound', productId: _prodId!, fromZone: _zone, quantity: qty, timestamp: DateTime.now());
+      _s.logs.add(log);
+      _s._saveLog(log);
     });
     _qtyC.clear();
     final name = _s.productName(_prodId!);
